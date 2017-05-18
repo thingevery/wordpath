@@ -1,0 +1,26 @@
+#gameTable {
+	width: 100%;
+	position: relative;
+	text-align: center;
+}
+
+#gridArea {
+	font-family: courier;
+	margin-top: 80px;
+	text-align: left;
+	position: relative;
+	display: inline-block;
+}
+
+#gridArea span {
+	margin: 0px 6px;
+	line-height: 20px;
+}
+
+#start {
+	position: absolute;
+	top: -10px;
+	display: inline-block;
+	text-align: center;
+	margin: 0 0 0 -16px;
+}
