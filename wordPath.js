@@ -3,9 +3,58 @@
 
 /////////////////////////////////////////////////
 
+
+// restructuring is needed.  
+
+// get starting coordinates
+// place first letter on the grid
+
+// until last letter of the word is placed on the bottom row, repeat the following:	
+// 	get list of blocked directions for current space
+// 		check for top row, side columns, and eventually bottom rows
+// 	get list of available directions
+// 		check each available direction for an open space
+// 	if: there are available directions
+// 		pick one and move there
+// 		place the next letter of the word in the current space
+// 		add the direction moved to directionPath
+// 	else: there are no more available options
+// 		this is a dead end
+// 		find out which was the previous space
+// 		remove letter from previous space, replace with dot
+// 		move back to previous space
+// 		move back to previous letter
+// 		block direction that led to dead end
+
+
 // ToDo:
-//
-// Step backwards from dead ends, eliminating the previous direction from directionOptions.
+
+// Get rid of blockedDirections list and just remove blocked directions
+// from directionOptions, like before.
+
+// Make sure to stay on the correct letter when stepping back from a dead end.
+
+// Make sure console output matches letters being drawn to grid.
+
+// Write function to ensure last letter is placed on bottom row.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 //      *****     **          *****     ******       *****     **          *****
@@ -20,21 +69,43 @@
 //      *****     ********    *****     ******     *       *   ********    *****
 
 
+// defaults
 var gridHeight = 20,
-	gridWidth = 6;
+	gridWidth = 10,
+	theWord = 'abcdefghijklmnopqrstuvwxyz';
 
-var theWord = 'wordpath';
 var letterIndex;	
 
 var theGrid = [];	
 
 var startingColumn;
 
-var numRepeat = 6;	// how many times the word will be repeated along the path
+var numRepeat = 5;	// how many times the word will be repeated along the path
 // This will be removed later.  
 // As long as the last word ends at the bottom on the last letter, we don't care about how many times it was repeated.
 
-var directionPath = [];
+var gridPath = [];
+var step = 0;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -54,13 +125,23 @@ var directionPath = [];
 
 
 
+function showOptionsBox() {
+	$('#userInputArea').fadeIn(500); 
+
+	// insert default values
+	$('#userInputArea input#gridWidth').attr('placeholder', gridWidth);
+	$('#userInputArea input#gridHeight').attr('placeholder', gridHeight);
+	$('#userInputArea input#wordpath').attr('placeholder', theWord);
+}
+
 // initialize the grid with dots
 function initializeGrid(){
 	console.log('initializeGrid()');
 	for (var w = 0; w<gridWidth; w++) {
 		theGrid.push([]);
 		for (var h = 0; h<gridHeight; h++) {
-			theGrid[w].push('.');
+
+			theGrid[w].push({'letter' : '.'});
 		}
 	}	
 }
@@ -72,8 +153,8 @@ function randomizeGrid(){
 	for (var w = 0; w<gridWidth; w++) {		
 		for (var h = 0; h<gridHeight; h++) {
 			var randomLetter = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 1);
-			if (theGrid[w][h] == '.') {
-				theGrid[w][h] = randomLetter.toUpperCase();
+			if (theGrid[w][h].letter == '.') {
+				theGrid[w][h].letter = randomLetter.toUpperCase();
 			}
 		}
 	}	
@@ -85,7 +166,7 @@ function drawGridToConsole(){
 	// display the grid in the console
 	for (var h = 0; h<gridHeight; h++) {
 		for (var w = 0; w<gridWidth; w++) {
-			output.push(stripHTML(theGrid[w][h]));
+			output.push(stripHTML(theGrid[w][h].letter));
 		}
 		output.push('\n');
 	}
@@ -96,10 +177,11 @@ function drawGridToConsole(){
 
 // draw the grid on the page
 function drawGrid(){
+	console.log('drawGrid()');
 	var output = [];
 	for (var h = 0; h<gridHeight; h++) {
 		for (var w = 0; w<gridWidth; w++) {
-			output.push('<span>'+theGrid[w][h]+'</span>');
+			output.push('<span>'+theGrid[w][h].letter+'</span>');
 		}
 		output.push('<br>');
 	}
@@ -128,7 +210,7 @@ function isOpen(space) {
 		space.Y < gridHeight &&
 		space.X >= 0 &&
 		space.Y >= 0 &&
-		theGrid[space.X][space.Y] == '.') {
+		theGrid[space.X][space.Y].letter == '.') {
 		return true;
 	}
 	else return false;
@@ -145,14 +227,209 @@ function stripHTML(dirtyString) {
 }
 
 
+function findOpenSpace(currentGridSpace) {
+
+	var directionOptions = ['up', 'right', 'down', 'left'];
+	var direction;
+	var next = {};
+	var prev = {};
+
+	// place the letter in the current space
+	theGrid[currentGridSpace.X][currentGridSpace.Y].letter = theWord[step % theWord.length].toUpperCase() ;
+
+	// then, find the next open space
+
+	// top row
+	if (currentGridSpace.Y == 0) {
+
+		console.log('at the top');
+		console.log('removing \'up\' from directionOptions');
+
+		// if directionOptions contains 'up', remove it
+		if (directionOptions.indexOf('up') != -1) directionOptions.splice(directionOptions.indexOf('up'), 1);
+		
+		// at top row, moving towards starting column will create a trap
+		if (currentGridSpace.X < startingColumn) {
+
+			console.log('removing \'right\' from directionOptions');
+			// if directionOptions contains 'right', remove it
+			if (directionOptions.indexOf('right') != -1) directionOptions.splice(directionOptions.indexOf('right'), 1);
+		}
+		else if (currentGridSpace.X > startingColumn) {
+			
+			console.log('removing \'left\' from directionOptions');
+			// if directionOptions contains 'left', remove it
+			if (directionOptions.indexOf('left') != -1) directionOptions.splice(directionOptions.indexOf('left'), 1);
+		}
+	}
+	// right edge
+	if (currentGridSpace.X == gridWidth -1){
+		console.log('right edge');
+		console.log('removing \'right\' and \'up\' from directionOptions');
+
+		// if directionOptions contains 'right', remove it
+		if (directionOptions.indexOf('right') != -1) directionOptions.splice(directionOptions.indexOf('right'), 1);
+
+		// if directionOptions contains 'up', remove it
+		if (directionOptions.indexOf('up') != -1) directionOptions.splice(directionOptions.indexOf('up'), 1);
+	}
+	// left edge
+	if (currentGridSpace.X == 0) {
+		console.log('left edge');
+		console.log('removing \'left\' and \'up\' from directionOptions');
+
+		// if directionOptions contains 'left', remove it
+		if (directionOptions.indexOf('left') != -1) directionOptions.splice(directionOptions.indexOf('left'), 1);
+
+		// if directionOptions contains 'up', remove it
+		if (directionOptions.indexOf('up') != -1) directionOptions.splice(directionOptions.indexOf('up'), 1);
+	}
+
+
+
+	// if (blockedDirections.length > 0) {
+	// 	console.log('removing ' + blockedDirections.join(', ') + ' from directionOptions');
+
+	// 	// remove each item in blockedDirections from directionOptions
+	// 	$(blockedDirections).each(function(n){
+	// 		if (directionOptions.indexOf(blockedDirections[n]) != -1) directionOptions.splice(directionOptions.indexOf(blockedDirections[n]), 1);
+	// 	});
+
+	// 	console.log('now, directionOptions contains: ' + directionOptions.join(', ') );
+	// }
+
+	
+
+	// randomly choose between remaining directions until an open space is found
+	while (!isOpen(next) && directionOptions.length) {
+		// pick a 'random' direction to go next
+		direction = Math.floor((Math.random() * directionOptions.length) + 0);
+
+		console.log('direction: ' + directionOptions[direction]+' ('+direction+')');
+
+		switch(directionOptions[direction]) {
+			case 'up' :
+				next.X = currentGridSpace.X;
+				next.Y = currentGridSpace.Y - 1; 
+				if (!isOpen(next)) {
+					console.log('removing up as an option');
+					if (directionOptions.indexOf('up') != -1) directionOptions.splice(directionOptions.indexOf('up'), 1);
+					console.log('now, directionOptions: '+directionOptions);
+				}
+				break;
+			case 'right' :
+				next.X = currentGridSpace.X + 1;
+				next.Y = currentGridSpace.Y;
+				if (!isOpen(next)) {
+					console.log('removing right as an option');
+					if (directionOptions.indexOf('right') != -1) directionOptions.splice(directionOptions.indexOf('right'), 1);
+					console.log('now, directionOptions: '+directionOptions);
+				}
+				break;
+			case 'down' :  
+				next.X = currentGridSpace.X;
+				next.Y = currentGridSpace.Y + 1;
+				if (!isOpen(next)) {
+					console.log('removing down as an option');
+					// There was no chance of removing 'down' before now,
+					// so no need to check for a -1 index in this case.
+					directionOptions.splice(directionOptions.indexOf('down'), 1);
+					console.log('now, directionOptions: '+directionOptions);
+				}
+				break;
+			case 'left' :
+				next.X = currentGridSpace.X - 1;
+				next.Y = currentGridSpace.Y;
+				if (!isOpen(next)) {
+					console.log('removing left as an option');
+					if (directionOptions.indexOf('left') != -1) directionOptions.splice(directionOptions.indexOf('left'), 1);
+					console.log('now, directionOptions: '+directionOptions);
+				}
+				break;
+			default : // this will never happen 
+		}	
+	}
+
+	// if no free space is available
+	if (directionOptions.length == 0) {
+		// 		set current to prev
+		// 		pre-block the direction that leads to the dead end
+		// re-run findOpenSpace() with new pre-block list
+
+		//		step back one letter in the wordpath
+		// 		remove the last step in gridPath
+
+
+		// dead end
+		alert('dead end');
+		console.log('\n\n\n\n'+
+			'!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'+
+			'\n\nyou have reached a dead end');
+		console.log(gridPath.join(','));
+
+		var lastStep = gridPath.pop(gridPath.length-1);
+		console.log('last step was: '+lastStep);	
+
+		switch(lastStep) {
+			case 'up' :
+				prev.X = currentGridSpace.X;
+				prev.Y = currentGridSpace.Y + 1;
+				break;
+			case 'right' :
+				prev.X = currentGridSpace.X - 1;
+				prev.Y = currentGridSpace.Y;
+				break;
+			case 'down' :
+				prev.X = currentGridSpace.X;
+				prev.Y = currentGridSpace.Y - 1;
+				break;
+			case 'left' :
+				prev.X = currentGridSpace.X + 1;
+				prev.Y = currentGridSpace.Y;
+				break;
+			default : 
+				alert('how did this happen?');
+				// it should never happen
+		}
+
+		step--;
+
+		theGrid[currentGridSpace.X][currentGridSpace.Y].letter = "*";
+
+		return prev; 
+	}
+	// if a free space is available
+	else {
+		// move to empty space 
+
+		// add direction to gridPath
+		gridPath.push(directionOptions[direction]);
+		
+		// // set current to next
+		// prev = currentGridSpace;
+		// currentGridSpace = next;	
+
+		step++
+
+		return next;
+	}
+	
+	
+}
+
+
 
 // calculate word path
-function fitWordPath(){
+function fitWordPath() {
 
 	// determine starting point
 	startingColumn = Math.floor((Math.random() * gridWidth) + 0);
 
 	var current = {X: startingColumn, Y: 0};
+
+
+	// later, the conditional below will change to require that the 
+	// last letter of the word ends on the bottom row of the puzzle
 
 	// repeat the word so many times
 	for (var n = 0; n < numRepeat; n++){
@@ -161,179 +438,106 @@ function fitWordPath(){
 
 		for (var i = 0; i < theWord.length; i++) {
 			
-			console.log(theWord[i]);
-			console.log('current: '+JSON.stringify(current));
+			console.log('\n\n\nplacing ' + theWord[i] + ' at ' + JSON.stringify(current) );
 
-			theGrid[current.X][current.Y] = theWord[i].toUpperCase();
-			// theGrid[current.X][current.Y] = '<span>'+theWord[i].toUpperCase()+'</span>';
-
-			// find next square
-			var next = {};
-			var tries = 0;
-
-			var directionOptions = ['up', 'right', 'down', 'left'];
-			var direction;
+			current = findOpenSpace(current);
 			
-			// check for edges
-			if (current.Y == 0) {
+			if (n == numRepeat - 1 && i == theWord.length - 1) {
+				
+				// fill the rest of the puzzle with random letters
+				// randomizeGrid();
 
-				console.log('at the top');
-				console.log('removing up from options');
-				directionOptions.splice(directionOptions.indexOf('up'), 1);
-				// directionOptions[0] = 'blocked';
-
-				if (current.X < startingColumn) {
-					console.log('removing right from options');
-					directionOptions.splice(directionOptions.indexOf('right'), 1);
-					console.log('now, directionOptions: '+directionOptions);
-					// directionOptions[1] = 'blocked';
-				}
-				else if (current.X > startingColumn) {
-					console.log('removing left from options');
-					directionOptions.splice(directionOptions.indexOf('left'), 1);
-					console.log('now, directionOptions: '+directionOptions);
-					// directionOptions[3] = 'blocked';
-				}
+				drawGrid();
+				// drawGridToConsole();
+				
 			}
-			if (current.X == gridWidth -1){
-				console.log('right edge');
-				console.log('removing up and right from options');
-				// Check that 'up' is still in directionOptions before removing
-				// because an index of -1 will remove the last item.
-				if (directionOptions.indexOf('up') != -1) directionOptions.splice(directionOptions.indexOf('up'), 1);
-				if (directionOptions.indexOf('right') != -1) directionOptions.splice(directionOptions.indexOf('right'), 1);
-			}
-			if (current.X == 0) {
-				console.log('left edge');
-				console.log('removing up and left from options');
-				if (directionOptions.indexOf('up') != -1) directionOptions.splice(directionOptions.indexOf('up'), 1);
-				if (directionOptions.indexOf('left') != -1) directionOptions.splice(directionOptions.indexOf('left'), 1);
-			}
-
-			while (!isOpen(next) && directionOptions.length) {
-				// pick a 'random' direction to go next (0 - 3)
-				direction = Math.floor((Math.random() * directionOptions.length) + 0);
-
-				console.log('directionOptions: '+directionOptions);
-				console.log('direction: ' + directionOptions[direction]+' ('+direction+')');
-
-				switch(directionOptions[direction]) {
-					case 'up' :
-						next.X = current.X;
-						next.Y = current.Y - 1; 
-						if (!isOpen(next)) {
-							console.log('removing up as an option');
-							if (directionOptions.indexOf('up') != -1) directionOptions.splice(directionOptions.indexOf('up'), 1);
-							console.log('now, directionOptions: '+directionOptions);
-						}
-						break;
-					case 'right' :
-						next.X = current.X + 1;
-						next.Y = current.Y;
-						if (!isOpen(next)) {
-							console.log('removing right as an option');
-							if (directionOptions.indexOf('right') != -1) directionOptions.splice(directionOptions.indexOf('right'), 1);
-							console.log('now, directionOptions: '+directionOptions);
-						}
-						break;
-					case 'down' :  
-						next.X = current.X;
-						next.Y = current.Y + 1;
-						if (!isOpen(next)) {
-							console.log('removing down as an option');
-							// There was no chance of removing 'down' before now,
-							// so no need to check for a -1 index in this case.
-							directionOptions.splice(directionOptions.indexOf('down'), 1);
-							console.log('now, directionOptions: '+directionOptions);
-						}
-						break;
-					case 'left' :
-						next.X = current.X - 1;
-						next.Y = current.Y;
-						if (!isOpen(next)) {
-							console.log('removing left as an option');
-							if (directionOptions.indexOf('left') != -1) directionOptions.splice(directionOptions.indexOf('left'), 1);
-							console.log('now, directionOptions: '+directionOptions);
-						}
-						break;
-					default : // this will never happen 
-				}	
-				// tries++;
-			}
-
-			// if (tries > 4) {
-			console.log('finally, '+directionOptions);
-			if (directionOptions.length == 0) {
-				i = theWord.length;
-				n = numRepeat;
-				console.log('dead end');
-				console.log(directionPath.join(','));
-
-				// // remove last letter
-				// theGrid[current.X][current.Y] = '.';
-
-				// while (directionOptions.length == 0) {
-
-				// 	// get and remove last step from directionPath
-				// 	var lastStep = directionPath.pop(directionPath.length-1);
-				// 	console.log('last step was: '+lastStep);
-
-				// 	switch(lastStep) {
-				// 		case 'up' :
-				// 			next.X = current.X;
-				// 			next.Y = current.Y + 1; 
-				// 			if (!isOpen(next)) {
-				// 				console.log('removing up as an option');
-				// 				if (directionOptions.indexOf('up') != -1) directionOptions.splice(directionOptions.indexOf('up'), 1);
-				// 				console.log('now, directionOptions: '+directionOptions);
-				// 			}
-				// 			break;
-				// 		case 'right' :
-				// 			next.X = current.X - 1;
-				// 			next.Y = current.Y;
-				// 			if (!isOpen(next)) {
-				// 				console.log('removing right as an option');
-				// 				if (directionOptions.indexOf('right') != -1) directionOptions.splice(directionOptions.indexOf('right'), 1);
-				// 				console.log('now, directionOptions: '+directionOptions);
-				// 			}
-				// 			break;
-				// 		case 'down' :  
-				// 			next.X = current.X;
-				// 			next.Y = current.Y - 1;
-				// 			if (!isOpen(next)) {
-				// 				console.log('removing down as an option');
-				// 				// There was no chance of removing 'down' before now,
-				// 				// so no need to check for a -1 index in this case.
-				// 				directionOptions.splice(directionOptions.indexOf('down'), 1);
-				// 				console.log('now, directionOptions: '+directionOptions);
-				// 			}
-				// 			break;
-				// 		case 'left' :
-				// 			next.X = current.X + 1;
-				// 			next.Y = current.Y;
-				// 			if (!isOpen(next)) {
-				// 				console.log('removing left as an option');
-				// 				if (directionOptions.indexOf('left') != -1) directionOptions.splice(directionOptions.indexOf('left'), 1);
-				// 				console.log('now, directionOptions: '+directionOptions);
-				// 			}
-				// 			break;
-				// 		default : // this will never happen 
-				// 	}	
-				// }
-
-			}
-			else {
-				// add direction to directionPath
-				directionPath.push(directionOptions[direction]);
-				// set current to next
-				current = next;	
-			}
-			
 		}
 
 	}
-	
+
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//    *********  *       *   *********   *      *   *********    *****
+//    *          *       *   *           **     *       *      **     **
+//    *          *       *   *           * *    *       *      *
+//    *           *     *    *           *  *   *       *      **
+//    *******     *     *    *******     *  *   *       *        *****
+//    *           *     *    *           *   *  *       *             **
+//    *            *   *     *           *   *  *       *              *
+//    *            *   *     *           *    * *       *      *       *
+//    *             * *      *           *     **       *      **     **
+//    *********      *       *********   *      *       *        *****
+
+
+
+
+////////////////////////////////
+// click create button
+$(document).on('click', '#userInputArea button.createButton', function(e){
+
+	// get user input
+	gridWidth = $('#userInputArea input#gridWidth').val() || $('#userInputArea input#gridWidth').attr('placeholder');
+	gridHeight = $('#userInputArea input#gridHeight').val() || $('#userInputArea input#gridHeight').attr('placeholder');
+	theWord = $('#userInputArea input#wordpath').val() || $('#userInputArea input#wordpath').attr('placeholder');
+
+	console.log('creating ' + gridWidth +' x '+ gridHeight + ' puzzle for: ' + theWord);
+
+	// hide user input area
+	$('#userInputArea').fadeOut(500, function(){
+		
+		// fill grid with dots
+		initializeGrid();
+
+		// make the puzzle
+		fitWordPath();
+
+	}); 
+
+	e.preventDefault();
+
+});
+
+
+// pressing enter while focussed on .userLabel or .color inputs clicks the addLabel button
+$(document).on('keydown','#userInputArea input', function(event) {
+  if (event.keyCode == 13) {
+    $('#userInputArea button.createButton').click();
+  }
+});
+
+
+
+
+
+
+
+
 
 
 
@@ -357,13 +561,15 @@ function fitWordPath(){
 
 
 $(function(){
-	initializeGrid();
+	showOptionsBox();
+
+	// initializeGrid(); // this is now called when create button is clicked
 	
-	fitWordPath();
+	// fitWordPath();	// this is now called when create button is clicked
 
-	// randomizeGrid();	
+	// randomizeGrid();	// this is now called when create button is clicked
 
-	drawGrid();
+	// drawGrid();
 	// drawGridToConsole();
 });
 
