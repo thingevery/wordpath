@@ -16,11 +16,25 @@
 	margin: 0px 6px;
 	line-height: 20px;
 }
-
 #start {
 	position: absolute;
+}
+#exit {
+	position: relative;
+}
+#start, #exit {
 	top: -10px;
 	display: inline-block;
 	text-align: center;
 	margin: 0 0 0 -16px;
+}
+
+#userInputArea {
+	display: none;
+	margin-top: 150px;
+	text-align: center;
+}
+
+.createButton {
+	margin-top:20px;
 }

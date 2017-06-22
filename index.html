@@ -4,12 +4,27 @@
 		 <script src="jquery-3.2.1.min.js"></script>
 		<script type="text/javascript" src="wordPath.js" ></script>
 		<!-- charset="utf-8" -->
-		
+
 		<link rel="stylesheet" href="wordPath.css" />
 	</head>
 
 	<body>
-		<div id="userInputArea"></div>
+		<div id="userInputArea">
+			<form>
+				<p>
+					Width: <input type="number" id="gridWidth" placeholder="">
+					Height: <input type="number" id="gridHeight" placeholder="">
+					The Word: <input type="text" id="wordpath" placeholder="">
+					Difficulty: <select>
+									<option value="easy">Easy</option>
+									<option selected value="normal">Normal</option>
+									<option value="hard">Hard</option>
+								</select>
+					<br>
+					<button class="createButton" type="button">create word path</button>
+				</p>
+			</form>
+		</div>
 		<div id="gameTable">
 			<div id="gridArea"></div>
 		</div>
