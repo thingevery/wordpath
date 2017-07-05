@@ -15,7 +15,7 @@
 					Width: <input type="number" id="gridWidth" placeholder="">
 					Height: <input type="number" id="gridHeight" placeholder="">
 					The Word: <input type="text" id="wordpath" placeholder="">
-					Difficulty: <select>
+					Difficulty: <select id="difficulty">
 									<option value="easy">Easy</option>
 									<option selected value="normal">Normal</option>
 									<option value="hard">Hard</option>
@@ -26,6 +26,8 @@
 			</form>
 		</div>
 		<div id="gameTable">
+			<div id="playerPathArea"></div>
+			<div id="solutionPathArea"></div>
 			<div id="gridArea"></div>
 		</div>
 		
