@@ -1,33 +1,33 @@
 // wordPath.js
-// Generates a Word Path puzzle given the word, grid size, and difficulty level.
+// Generates a Word Path puzzle given the word, grid size, and difficulty level.  
+// Users may enter a comma separated list of words to choose from at random.
 
 /////////////////////////////////////////////////
 
 
-// code is a mess.  needs structure
-
 
 // ToDo:
 
-// √ 	Fix last two tiles on solutionPath.
-// √ 	Add difficulty setting which determines what letter set is used in randomizeGrid.
-// √	Fix incorrect tiles on user path when backtracking.
-// √	Change green lines to double line to avoid overlapping the red.
-
+// √	Fix incorrect tiles on solution path when backtracking from dead ends.
+// Clean up redundant and inefficient code.
+// Resize game grid to fit browser window.
 // Be more precise when calculating checkRow.
-// Control left/right after checkRow.
-// If theWord contains spaces, replace them with underscores, and add '_' to the random set.
-// Allow user to enter a comma separated word list.
-// Hold grid size, word, difficulty settings, and word list in local storage.
-// Validate word so only letters and spaces are accepted.
-// Rebuild the whole thing in a Canvas, so it looks the same on all devices.
-// Fix incorrect tiles on solution path when backtracking from deadends.
+// Control left/right direction after checkRow.
+// Allow user to enter comma separated word list.
+// Allow user to supply a label and save settings in localStorage.
+// Settings can include grid size, word or word list, and difficulty.
+// Validate the word so only letters and spaces are accepted.
+// If the word contains spaces, replace them with underscores, add one to the end of the word, and add '_' to the random set.
+// Rebuild the whole thing in canvas to better control how it looks and works.
+
+
 
 // Game Play:
 
-// First letter will start out highlighted.
-// Player will draw a path using arrow keys. 
-// (Eventually, letters should be clickable for mobile users.)
+// √	First letter will start out highlighted.
+// √	Player will draw a path using arrow keys.
+// Player's path cannot overlap itself.
+// Eventually, letters should be clickable for mobile users.
 // Player starts with 3 lives.
 // If player steps off the path, a life is lost and gameplay continues.
 // When all lives are lost, game is over.
@@ -37,10 +37,6 @@
 // When the wordPath is drawn, a maximum score is generated.
 // At the end of the game, the (maximum scoring) wordPath is revealed.
 // Shortcuts are allowed, but will not attain the maximum score.
-
-
-
-
 
 
 
@@ -60,48 +56,30 @@
 // defaults
 var gridHeight = 20,
 	gridWidth = 20,
-	theWord = 'wordpath',
-	checkRow = -1;
+	theWord = 'wordpath';
 
-var letterIndex;	
+// the grids
+var theGrid = [],	
+	solutionGrid = [],
+	playerGrid = [];
 
-var theGrid = [];	
-var solutionGrid = [];
-var playerGrid = [];
+// the paths
+var solutionPath = [],
+	playerPath = [],
+	step = 0,
+	playerStep = 0;
 
-var startingColumn;
-var finishingColumn;
-
-var numRepeat = 1;	// how many times the word will be repeated along the path
-// This will be removed later.  
-// As long as the last word ends at the bottom on the last letter, we don't care about how many times it was repeated.
-
-var solutionPath = [];
-var step = 0;
-
-var playerPath = [];
-var playerStep = 0;
-
-
-// var i = 0;	// the current letter's place in the word
-
+// the word path
+var wordContainsSpaces = false;
 var current = {X: 0, Y: 0};
+var backStepping = false;
+
+// gameplay
 var player = {X: 0, Y: 0};
 
-var finishingUp = false;
-
-var rNum = 0;
-
-var wordContainsSpaces = false;
-
-/////////////////////////////////
-// deugging variables
-
-var showGridBuild = true;
-
-
-
-
+///////////////////////////////////////
+// deugging 
+var showGridBuild = false;
 
 
 
@@ -127,7 +105,7 @@ var showGridBuild = true;
 //    *            *****     *      *     *****        *       ***     *****     *      *      *****
 
 
-
+// display the wordpath options
 function showOptionsBox() {
 	$('#userInputArea').fadeIn(500); 
 
@@ -137,18 +115,34 @@ function showOptionsBox() {
 	$('#userInputArea input#wordpath').attr('placeholder', theWord);
 }
 
+
 // initialize the grid with dots
 function initializeGrid(){
 	console.log('initializeGrid()');
 	for (var w = 0; w<gridWidth; w++) {
 		theGrid.push([]);
 		for (var h = 0; h<gridHeight; h++) {
-
+			console.log('adding a dot to ['+w+']['+h+']');
 			theGrid[w].push({'letter' : '.'});
+			// theGrid[w].push({'tile' : '<img src="images/empty-square.png" alt="empty">'});
 		}
 	}	
 	calculateEndCheckRow();
 }
+
+
+
+// initialize the solution grid
+function initializeSolutionGrid(){
+	console.log('initializeSolutionGrid()');
+	for (var w=0; w<gridWidth; w++) {
+		solutionGrid.push([]);
+		for (var h=0; h<gridHeight; h++) {
+			solutionGrid[w].push({'tile' : '<img src="images/empty-square.png" alt="empty">'});
+		}
+	}
+}
+
 
 
 // initialize the solution grid
@@ -163,239 +157,84 @@ function initializePlayerGrid(){
 }
 
 
-// initialize the solution grid
-function initializeSolutionGrid(){
-	console.log('initializeSolutionGrid()');
-	for (var w=0; w<gridWidth; w++) {
-		solutionGrid.push([]);
-		for (var h=0; h<gridHeight; h++) {
-			solutionGrid[w].push({'tile' : '<img src="images/empty-square.png" alt="empty">'});
-		}
-	}
+
+// figure out when to start influencing the randomness of the path
+function calculateEndCheckRow(){
+	// if the word is shorter than the grid width, checkRow is the second to last line 
+	if (theWord.length <= gridWidth) checkRow = gridHeight - 2;
+	// if the word is longer than the grid width, checkRow is 
+	else checkRow = gridHeight - 2 - Math.floor(theWord.length / gridWidth);
+
+	console.log('The word will take at least ' + Math.floor(theWord.length / gridWidth) + ' full rows');
+	console.log('and then '+theWord.length % gridWidth+' columns in another.');
+
+	console.log('checkRow is row: '+checkRow);
 }
 
-// fill the grid with random numbers
-function randomizeGrid(){
-	console.log('randomizeGrid()');
 
-	// begin with all letters
-	var randomSet = [];
-	for (var i = 65; i <= 90; i++) {
-	     randomSet[i-65] = String.fromCharCode(i).toLowerCase();
-	}
-	// add underscores if necessary
-	if (wordContainsSpaces) randomSet.push('_');
 
-	console.log('at first, the set contains: '+randomSet);
 
-	console.log('difficulty: '+$('select#difficulty').val());
+function createWordPath() {
 
-	// refine randomSet based on difficulty
-	switch ($('select#difficulty').val()) {
-		case 'easy' :
-			$(randomSet).each(function(n){
-				var setItem = this;
+	console.log('createWordPath()');
 
-				for (var letter = 0; letter < theWord.length; letter++) {
-				  if (theWord[letter] == setItem) randomSet.splice(randomSet.indexOf(theWord[letter]), 1);	
+	// determine starting point
+	startingColumn = Math.floor((Math.random() * gridWidth) + 0);
+
+	current = {X: startingColumn, Y: 0};
+
+	solutionPath.push('down');
+
+	// if current is not undefined
+	while (current) {
+		finishingColumn = current.X;
+
+		// unless the last letter is placed in the bottom row
+		if ((current.Y != gridHeight - 1) || (step % theWord.length != theWord.length)) {
+			
+			// if not on the last letter
+			if ((step % theWord.length) < theWord.length) {
+
+				console.log('\n\n\n\n\n\nstep: '+step);
+				console.log('step % theWord.length: ' + step % theWord.length);
+				console.log('theWord.length: '+theWord.length);
+				console.log('placing \'' + theWord[step % theWord.length] + '\' at ' + JSON.stringify(current) );
+
+				current = findOpenSpace(current);
+				
+				// if after updating current, we're now on the last letter
+				if (step % theWord.length == theWord.length - 1) {
+					
+					if (showGridBuild) {
+						drawGrid();
+						drawPlayerGrid();
+					}
+					
 				}
+				
+			} 
 
-				// jquery alernative to above for loop
-				// $(theWord.split('')).each(function(){
-				// 	if (this.toString() == setItem) randomSet.splice(randomSet.indexOf(this.toString()), 1);	
-				// });
-
-			});
-			break;
-		case 'normal' :
-			
-			break;
-		case 'hard' :
-			randomSet = [];
-			$(theWord.split('')).each(function(){
-				if ($.inArray(this.toString(), randomSet) === -1) randomSet.push(this.toString());
-			});
-			break;
-		default :
-			break;	
-	}
-
-	console.log('based on difficulty, the set is now: '+randomSet);
-	
-	// fill the grid with random letters
-	for (var w = 0; w<gridWidth; w++) {		
-		for (var h = 0; h<gridHeight; h++) {
-			
-			// grab a random letter from the results of this regex
-			// var randomLetter = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 1);
-
-			// grab a random letter from randomSet
-			var randomLetter = randomSet[Math.floor(Math.random() * randomSet.length)];
-
-			if (theGrid[w][h].letter == '.' || theGrid[w][h].letter == '*') {
-				theGrid[w][h].letter = randomLetter.toUpperCase();
+			if (showGridBuild) {
+				drawGrid();
+				drawPlayerGrid();
 			}
 		}
-	}	
-}
-
-// draw the grid in the console
-function drawGridToConsole(){
-	var output = [];
-	// display the grid in the console
-	for (var h = 0; h<gridHeight; h++) {
-		for (var w = 0; w<gridWidth; w++) {
-			output.push(stripHTML(theGrid[w][h].letter));
+		// if the last letter is placed on the bottom row
+		else {
+			theGrid[current.X][current.Y].letter = theWord[step % theWord.length].toUpperCase();
+			theGrid[current.X][current.Y].tile = '<img src="images/'+theGrid[current.X][current.Y].letter+'.png" alt="'+theGrid[current.X][current.Y].letter+'">';
 		}
-		output.push('\n');
 	}
-	console.log(output.join(''));	
-}
+	// eventually, current will be undefined
+	if (!current) {
+		randomizeGrid();
+		drawGrid();
+		drawPlayerGrid();
 
-
-
-// draw the grid on the page
-function drawGrid(){
-	console.log('drawGrid()');
-	var output = [];
-	for (var h = 0; h<gridHeight; h++) {
-		for (var w = 0; w<gridWidth; w++) {
-			output.push('<span>'+theGrid[w][h].letter+'</span>');
-		}
-		output.push('<br>');
+		startGame();
 	}
-	$('div#gridArea').html(output.join(''));	
-
-	//console.log(startingColumn+' * '+gridWidth+' = '+(startingColumn*gridWidth) );
-	placeStartingPoint((startingColumn+1)*100/gridWidth);
-	placeExitPoint((finishingColumn+1)*100/gridWidth);
 }
 
-
-
-
-// // draw the grid on the page
-// function drawGrid(){
-// 	console.log('drawGrid()');
-// 	var output = [];
-// 	for (var h = 0; h<gridHeight; h++) {
-// 		for (var w = 0; w<gridWidth; w++) {
-// 			output.push('<span><img src="images/'+theGrid[w][h].letter+'.png" alt="'+theGrid[w][h].letter+'"></span>');
-// 		}
-// 		output.push('<br>');
-// 	}
-// 	$('div#gridArea').html(output.join(''));	
-
-// 	//console.log(startingColumn+' * '+gridWidth+' = '+(startingColumn*gridWidth) );
-// 	placeStartingPoint((startingColumn+1)*100/gridWidth);
-// 	placeExitPoint((finishingColumn+1)*100/gridWidth);
-// }
-
-
-
-
-// draw the grid on the page
-function drawPlayerGrid(){
-	console.log('drawPlayerGrid()');
-
-	// get grid width in pixels
-	var gridWidthInPixels = $('#gridArea').width();
-	var gridHeightInPixels = $('#gridArea').height();
-	var gridCellWidth = gridWidthInPixels / gridWidth;
-	var gridCellHeight = gridHeightInPixels / gridHeight;
-
-	var output = [];
-	for (var h = 0; h<gridHeight; h++) {
-		for (var w = 0; w<gridWidth; w++) {
-			output.push('<span>'+ playerGrid[w][h].tile +'</span>');
-		}
-		output.push('<br>');
-	}
-	$('div#playerPathArea').html(output.join(''));	
-
-	$('#playerPathArea').css({'width' : gridWidthInPixels,
-							  'height' : gridHeightInPixels});
-	$('#playerPathArea span img').css({'width' : gridCellWidth,
-									   'height' : gridCellHeight});
-}
-
-
-
-
-// draw the grid on the page
-function drawSolutionGrid(){
-	console.log('drawSolutionGrid()');
-
-	// get grid width in pixels
-	var gridWidthInPixels = $('#gridArea').width();
-	var gridHeightInPixels = $('#gridArea').height();
-	var gridCellWidth = gridWidthInPixels / gridWidth;
-	var gridCellHeight = gridHeightInPixels / gridHeight;
-
-	console.log('gridHeightInPixels: '+gridHeightInPixels);
-	console.log('divided by: '+gridHeight+' =');
-	console.log('gridCellHeight: '+gridCellHeight);
-
-	var output = [];
-	for (var h = 0; h<gridHeight; h++) {
-		for (var w = 0; w<gridWidth; w++) {
-			output.push('<span>'+ solutionGrid[w][h].tile +'</span>');
-		}
-		output.push('<br>');
-	}
-	$('div#solutionPathArea').html(output.join(''));	
-
-	$('#solutionPathArea').css({'width' : gridWidthInPixels,
-							  'height' : gridHeightInPixels});
-	
-	$('#solutionPathArea span img').css({'width' : gridCellWidth,
-										 'height' : gridCellHeight});
-	
-}
-
-
-
-// place the starting point
-function placeStartingPoint(column) {
-	//console.log('placeStartingPoint()');
-	
-	$('#gridArea').prepend('<div id="start">\u25BE</div>');
-	$('#start').css('left' , (column) + '%')
-}
-
-
-
-// place the exit point
-function placeExitPoint(column) {
-	console.log('placeExitPoint()');
-	
-	$('#gridArea').append('<div id="exit">\u25BE</div>');
-	$('#exit').css('left' , (column) + '%')
-}
-
-
-
-// make sure given space is still on the grid
-function isOpen(space) {
-	if (space.X < gridWidth &&
-		space.Y < gridHeight &&
-		space.X >= 0 &&
-		space.Y >= 0 &&
-		theGrid[space.X][space.Y].letter == '.') {
-		return true;
-	}
-	else return false;
-}
-
-
-
-// strip HTML tags from string
-function stripHTML(dirtyString) {
-	var container = document.createElement('div');
-	var text = document.createTextNode(dirtyString);
-	container.appendChild(text);
-	return container.innerHTML; // innerHTML will be a xss safe string
-}
 
 
 function findOpenSpace(currentGridSpace) {
@@ -408,7 +247,16 @@ function findOpenSpace(currentGridSpace) {
 	updateSolutionPathTiles();
 
 	// place the letter in the current space
-	theGrid[currentGridSpace.X][currentGridSpace.Y].letter = theWord[step % theWord.length].toUpperCase();
+	if (backStepping) {
+		// theGrid[currentGridSpace.X][currentGridSpace.Y].letter = "*";
+		theGrid[currentGridSpace.X][currentGridSpace.Y].tile = '<img src="images/empty-square.png" alt="empty">';
+	}
+	else {
+		theGrid[currentGridSpace.X][currentGridSpace.Y].letter = theWord[step % theWord.length].toUpperCase();
+		theGrid[currentGridSpace.X][currentGridSpace.Y].tile = '<img src="images/'+theGrid[currentGridSpace.X][currentGridSpace.Y].letter+'.png" alt="'+theGrid[currentGridSpace.X][currentGridSpace.Y].letter+'">';
+	}
+	
+	backStepping = false;
 
 	// then, find the next open space
 
@@ -631,6 +479,7 @@ function findOpenSpace(currentGridSpace) {
 			
 			// place the last letter
 			theGrid[currentGridSpace.X][currentGridSpace.Y].letter = theWord[step % theWord.length].toUpperCase();
+			theGrid[currentGridSpace.X][currentGridSpace.Y].tile = '<img src="images/'+theGrid[currentGridSpace.X][currentGridSpace.Y].letter+'.png" alt="'+theGrid[currentGridSpace.X][currentGridSpace.Y].letter+'">';
 
 			// add direction to solutionPath
 			// solutionPath.push(directionOptions[direction]);
@@ -647,8 +496,11 @@ function findOpenSpace(currentGridSpace) {
 		else {
 			step--;
 
+			console.log('adding asterisk and clearing path')
 			theGrid[currentGridSpace.X][currentGridSpace.Y].letter = "*";
-			updateSolutionPathTiles();
+			solutionGrid[currentGridSpace.X][currentGridSpace.Y].tile = '<img src="images/empty-square.png" alt="empty">';
+			// updateSolutionPathTiles();
+			backStepping = true;
 			return prev; 
 		}
 		
@@ -668,298 +520,9 @@ function findOpenSpace(currentGridSpace) {
 
 		step++
 		
-
+		// backStepping = false;
 		return next;
-	}
-	
-	
-}
-
-
-
-// calculate word path
-function fitWordPath() {
-
-	// determine starting point
-	startingColumn = Math.floor((Math.random() * gridWidth) + 0);
-
-	current = {X: startingColumn, Y: 0};
-
-	console.log('ready');
-
-}
-
-
-function advanceOneStep() {
-
-	console.log('advanceOneStep()');
-
-	// if current is not undefined
-	if (current) {
-		finishingColumn = current.X;
-
-		// unless the last letter is placed in the bottom row
-		if ((current.Y != gridHeight - 1) || (step % theWord.length != theWord.length)) {
-			
-			// if not on the last letter
-			if ((step % theWord.length) < theWord.length) {
-
-				console.log('\n\n\n\n\n\nstep: '+step);
-				console.log('step % theWord.length: ' + step % theWord.length);
-				console.log('theWord.length: '+theWord.length);
-				console.log('placing \'' + theWord[step % theWord.length] + '\' at ' + JSON.stringify(current) );
-
-				current = findOpenSpace(current);
-				
-				// if after updating current, we're now on the last letter
-				if (step % theWord.length == theWord.length - 1) {
-					
-					if (showGridBuild) {
-						drawGrid();
-						drawSolutionGrid();
-					}
-					
-				}
-				
-			} 
-
-			if (showGridBuild) {
-				drawGrid();
-				drawSolutionGrid();
-			}
-		}
-		// if the last letter is placed on the bottom row
-		else {
-			theGrid[current.X][current.Y].letter = theWord[step % theWord.length].toUpperCase();
-		}
-	}
-	// eventually, current will be undefined
-	else {
-		randomizeGrid();
-		drawGrid();
-		drawPlayerGrid();
-		drawSolutionGrid();
-	}
-}
-
-
-
-function createWordPath() {
-
-	console.log('createWordPath()');
-
-	// determine starting point
-	startingColumn = Math.floor((Math.random() * gridWidth) + 0);
-
-	current = {X: startingColumn, Y: 0};
-
-	solutionPath.push('down');
-
-	// if current is not undefined
-	while (current) {
-		finishingColumn = current.X;
-
-		// unless the last letter is placed in the bottom row
-		if ((current.Y != gridHeight - 1) || (step % theWord.length != theWord.length)) {
-			
-			// if not on the last letter
-			if ((step % theWord.length) < theWord.length) {
-
-				console.log('\n\n\n\n\n\nstep: '+step);
-				console.log('step % theWord.length: ' + step % theWord.length);
-				console.log('theWord.length: '+theWord.length);
-				console.log('placing \'' + theWord[step % theWord.length] + '\' at ' + JSON.stringify(current) );
-
-				current = findOpenSpace(current);
-				
-				// if after updating current, we're now on the last letter
-				if (step % theWord.length == theWord.length - 1) {
-					
-					if (showGridBuild) {
-						drawGrid();
-						drawPlayerGrid();
-					}
-					
-				}
-				
-			} 
-
-			if (showGridBuild) {
-				drawGrid();
-				drawPlayerGrid();
-			}
-		}
-		// if the last letter is placed on the bottom row
-		else {
-			theGrid[current.X][current.Y].letter = theWord[step % theWord.length].toUpperCase();
-		}
-	}
-	// eventually, current will be undefined
-	if (!current) {
-		randomizeGrid();
-		drawGrid();
-		drawPlayerGrid();
-
-		startGame();
-	}
-}
-
-
-function calculateEndCheckRow(){
-	// if the word is shorter than the grid width, checkRow is the second to last line 
-	if (theWord.length <= gridWidth) checkRow = gridHeight - 2;
-	// if the word is longer than the grid width, checkRow is 
-	else checkRow = gridHeight - 2 - Math.floor(theWord.length / gridWidth);
-
-	console.log('The word will take at least ' + Math.floor(theWord.length / gridWidth) + ' full rows');
-	console.log('and then '+theWord.length % gridWidth+' columns in another.');
-
-	console.log('checkRow is row: '+checkRow);
-}
-
-
-function startGame(){
-	console.log('startGame()');
-	player.X = startingColumn;
-
-	drawSolutionGrid();
-	$('#solutionPathArea').hide();
-
-	// place open box on starting square
-	playerGrid[player.X][player.Y].tile = '<img src="images/open-circle.png" alt="open">';
-	drawPlayerGrid();
-	playerPath.push('down');
-
-	// $(document).on('keydown', function(event) {
-	//   switch (event.keyCode) {
-	//   	case 37 : if (player.X > 0) moveLeft();
-	//   		break;
-	//   	case 38 : if (player.Y > 0) moveUp();
-	//   		break;
-	//   	case 39 : if (player.X < gridWidth - 1) moveRight();
-	//   		break;
-	//   	case 40 : if (player.Y < gridHeight - 1) moveDown();
-	//   		break;
-	//   	case 71 : $('#solutionPathArea').toggle(); // g
-	//   		break;
-	//   	default : console.log('keyCode: '+ event.keyCode);
-	//   }
-	// });			
-}
-
-function moveLeft(){
-	console.log('moveLeft()');
-	playerPath.push('left');
-	player.X -= 1;
-	updatePlayerPathTiles();
-}
-function moveUp(){
-	console.log('moveUp()');	
-	playerPath.push('up');
-	player.Y -= 1;
-	updatePlayerPathTiles();
-}
-function moveRight(){
-	console.log('moveRight()');	
-	playerPath.push('right');
-	player.X++;
-	updatePlayerPathTiles();
-}
-function moveDown(){
-	console.log('moveDown()');
-	playerPath.push('down');
-	player.Y++;
-	updatePlayerPathTiles();
-}
-
-function updatePlayerPathTiles(){
-	console.log('updatePlayerPathTiles()');
-	console.log('player.X: '+player.X+', player.Y: '+player.Y);
-	console.log('playerPath: '+playerPath.join(', '));
-
-	playerGrid[player.X][player.Y].tile = '<img src="images/open-circle.png" alt="open">';
-	
-	// examine the last item on the path
-	switch (playerPath[playerPath.length -1]){
-		case 'up' :
-			// examine the second to last item on the path
-			switch (playerPath[playerPath.length -2]){
-				case 'up' :		 	// up, up
-					playerGrid[player.X][player.Y +1].tile = '<img src="images/up-down.png" alt="up-down">';
-					break;
-				case 'right' : 		// right, up
-					playerGrid[player.X][player.Y +1].tile = '<img src="images/up-left.png" alt="up-left">';
-					break;
-				case 'down' : 		// down, up
-					playerGrid[player.X][player.Y +1].tile = '<img src="images/empty-square.png" alt="empty">';
-					playerPath.splice(-2, 2);
-					break;
-				case 'left' : 		// left, up
-					playerGrid[player.X][player.Y +1].tile = '<img src="images/up-right.png" alt="up-right">';
-					break;
-				default : console.log('this should not have happened');
-			}
-			break;
-		case 'right' :
-			// examine the second to last item on the path
-			switch (playerPath[playerPath.length -2]){
-				case 'up' : 		// up, right
-					playerGrid[player.X -1][player.Y].tile = '<img src="images/down-right.png" alt="down-right">';
-					break;
-				case 'right' : 		// right, right
-					playerGrid[player.X -1][player.Y].tile = '<img src="images/left-right.png" alt="up-down">';
-					break;
-				case 'down' : 		// down, right
-					playerGrid[player.X -1][player.Y].tile = '<img src="images/up-right.png" alt="up-right">';
-					break;
-				case 'left' : 		// left, right
-					playerGrid[player.X -1][player.Y].tile = '<img src="images/empty-square.png" alt="empty">';
-					playerPath.splice(-2, 2);
-					break;
-				default : console.log('this should not have happened');
-			}			
-			break;
-		case 'down' :
-			// examine the second to last item on the path
-			switch (playerPath[playerPath.length -2]){
-				case 'up' : 		// up, down
-					playerGrid[player.X][player.Y -1].tile = '<img src="images/empty-square.png" alt="empty">';
-					playerPath.splice(-2, 2);
-					break;
-				case 'right' : 		// right, down
-					playerGrid[player.X][player.Y -1].tile = '<img src="images/down-left.png" alt="down-left">';
-					break;
-				case 'down' : 		// down, down
-					playerGrid[player.X][player.Y -1].tile = '<img src="images/up-down.png" alt="up-down">';
-					break;
-				case 'left' : 		// left, down
-					playerGrid[player.X][player.Y -1].tile = '<img src="images/down-right.png" alt="down-right">';
-					break;
-				default : console.log('this should not have happened');
-			}
-			break;
-		case 'left' :
-			// examine the second to last item on the path
-			switch (playerPath[playerPath.length -2]){
-				case 'up' : 		// up, left
-					playerGrid[player.X +1][player.Y].tile = '<img src="images/down-left.png" alt="down-left">';
-					break;
-				case 'right' : 		// right, left
-					playerGrid[player.X +1][player.Y].tile = '<img src="images/empty-square.png" alt="empty">';
-					playerPath.splice(-2, 2);
-					break;
-				case 'down' : 		// down, left
-					playerGrid[player.X +1][player.Y].tile = '<img src="images/up-left.png" alt="up-left">';
-					break;
-				case 'left' : 		// left, left
-					playerGrid[player.X +1][player.Y].tile = '<img src="images/left-right.png" alt="left-right">';
-					break;
-				default : console.log('this should not have happened');
-			}
-			break;
-		default : alert('something made it on to playerPath that shouldn\'t have ...made it on there');
-	}
-	drawPlayerGrid();
+	}	
 }
 
 
@@ -1057,10 +620,434 @@ function updateSolutionPathTiles(){
 			default : alert('something made it on to solutionPath that shouldn\'t have ...made it on there');
 		}
 	}
-
-	
-	// drawSolutionGrid();
 }
+
+
+
+// make sure given space is still on the grid
+function isOpen(space) {
+	if (space.X < gridWidth &&
+		space.Y < gridHeight &&
+		space.X >= 0 &&
+		space.Y >= 0 &&
+		theGrid[space.X][space.Y].letter == '.') {
+		return true;
+	}
+	else return false;
+}
+
+
+
+
+// place the exit point
+function placeExitPoint(percent) {
+	console.log('placeExitPoint()');
+	
+	$('#gridArea').append('<span id="exit"><img src="images/arrow.png" alt="arrow"></span>');
+	$('#exit').css('left' , (percent) + '%')
+}
+
+
+
+// fill the grid with random numbers
+function randomizeGrid(){
+	console.log('randomizeGrid()');
+
+	// begin with all letters
+	var randomSet = [];
+	for (var i = 65; i <= 90; i++) {
+	     randomSet[i-65] = String.fromCharCode(i).toLowerCase();
+	}
+	// add underscores if necessary
+	if (wordContainsSpaces) randomSet.push('_');
+
+	console.log('at first, the set contains: '+randomSet);
+
+	console.log('difficulty: '+$('select#difficulty').val());
+
+	// refine randomSet based on difficulty
+	switch ($('select#difficulty').val()) {
+		case 'easy' :
+			$(randomSet).each(function(n){
+				var setItem = this;
+
+				for (var letter = 0; letter < theWord.length; letter++) {
+				  if (theWord[letter] == setItem) randomSet.splice(randomSet.indexOf(theWord[letter]), 1);	
+				}
+
+				// jquery alernative to above for loop
+				// $(theWord.split('')).each(function(){
+				// 	if (this.toString() == setItem) randomSet.splice(randomSet.indexOf(this.toString()), 1);	
+				// });
+
+			});
+			break;
+		case 'normal' :
+			
+			break;
+		case 'hard' :
+			randomSet = [];
+			$(theWord.split('')).each(function(){
+				if ($.inArray(this.toString(), randomSet) === -1) randomSet.push(this.toString());
+			});
+			break;
+		default :
+			break;	
+	}
+
+	console.log('based on difficulty, the set is now: '+randomSet);
+	
+	// fill the grid with random letters
+	for (var w = 0; w<gridWidth; w++) {		
+		for (var h = 0; h<gridHeight; h++) {
+			
+			// grab a random letter from the results of this regex
+			// var randomLetter = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 1);
+
+			// grab a random letter from randomSet
+			var randomLetter = randomSet[Math.floor(Math.random() * randomSet.length)];
+
+			if (theGrid[w][h].letter == '.' || theGrid[w][h].letter == '*') {
+				theGrid[w][h].letter = randomLetter.toUpperCase();
+				theGrid[w][h].tile = '<img src="images/'+theGrid[w][h].letter+'.png" alt="'+theGrid[w][h].letter+'">';
+			}
+		}
+	}	
+}
+
+
+// draw the grid on the page
+function drawGrid(){
+	console.log('drawGrid()');
+	var output = [];
+	for (var h = 0; h<gridHeight; h++) {
+		for (var w = 0; w<gridWidth; w++) {
+			switch (theGrid[w][h].letter) {
+				case '.' : output.push('<span><img src="images/dot.png" alt="'+theGrid[w][h].letter+'"></span>');
+					break;
+				case '*' : output.push('<span><img src="images/star.png" alt="'+theGrid[w][h].letter+'"></span>');
+					break;
+				default : output.push('<span><img src="images/'+theGrid[w][h].letter+'.png" alt="'+theGrid[w][h].letter+'"></span>');
+			}
+			// output.push('<span><img src="images/'+theGrid[w][h].letter+'.png" alt="'+theGrid[w][h].letter+'"></span>');
+			// console.log('pushing: ' +theGrid[w][h].letter+' to output');
+			// output.push('<span>'+theGrid[w][h].tile+'</span>');
+		}
+		output.push('<br>');
+	}
+	$('div#gridArea').html(output.join(''));	
+
+	//console.log(startingColumn+' * '+gridWidth+' = '+(startingColumn*gridWidth) );
+	placeStartingPoint((startingColumn)*100/gridWidth);
+	placeExitPoint((finishingColumn)*100/gridWidth);
+}
+
+
+// place the starting point
+function placeStartingPoint(percent) {
+	//console.log('placeStartingPoint()');
+	
+	$('#gridArea').prepend('<span id="start"><img src="images/arrow.png" alt="arrow"></span>');
+	$('#start').css('left' , (percent) + '%')
+}
+
+
+
+
+// draw the grid on the page
+function drawPlayerGrid(){
+	console.log('drawPlayerGrid()');
+
+	// get grid width in pixels
+	var gridWidthInPixels = $('#gridArea').width();
+	var gridHeightInPixels = $('#gridArea').height();
+	var gridCellWidth = gridWidthInPixels / gridWidth;
+	var gridCellHeight = gridHeightInPixels / gridHeight;
+
+	var output = [];
+	for (var h = 0; h<gridHeight; h++) {
+		for (var w = 0; w<gridWidth; w++) {
+			output.push('<span>'+ playerGrid[w][h].tile +'</span>');
+		}
+		output.push('<br>');
+	}
+	$('div#playerPathArea').html(output.join(''));	
+
+	// $('#playerPathArea').css({'width' : gridWidthInPixels,
+	// 						  'height' : gridHeightInPixels});
+	// $('#playerPathArea span img').css({'width' : gridCellWidth,
+	// 								   'height' : gridCellHeight});
+}
+
+
+function startGame(){
+	console.log('startGame()');
+	player.X = startingColumn;
+
+	drawSolutionGrid();
+	$('#solutionPathArea').hide();
+
+	// place open box on starting square
+	playerGrid[player.X][player.Y].tile = '<img src="images/open-circle.png" alt="open">';
+	drawPlayerGrid();
+	playerPath.push('down');
+
+	$(document).on('keydown', function(event) {
+	  switch (event.keyCode) {
+	  	case 37 : if (player.X > 0) moveLeft();
+	  		break;
+	  	case 38 : if (player.Y > 0) moveUp();
+	  		break;
+	  	case 39 : if (player.X < gridWidth - 1) moveRight();
+	  		break;
+	  	case 40 : if (player.Y < gridHeight - 1) moveDown();
+	  		break;
+	  	case 71 : $('#solutionPathArea').toggle(); // g
+	  		break;
+	  	default : console.log('keyCode: '+ event.keyCode);
+	  }
+	});			
+}
+
+function moveLeft(){
+	console.log('moveLeft()');
+	playerPath.push('left');
+	player.X -= 1;
+	updatePlayerPathTiles();
+}
+function moveUp(){
+	console.log('moveUp()');	
+	playerPath.push('up');
+	player.Y -= 1;
+	updatePlayerPathTiles();
+}
+function moveRight(){
+	console.log('moveRight()');	
+	playerPath.push('right');
+	player.X++;
+	updatePlayerPathTiles();
+}
+function moveDown(){
+	console.log('moveDown()');
+	playerPath.push('down');
+	player.Y++;
+	updatePlayerPathTiles();
+}
+
+
+
+// draw the grid on the page
+function drawSolutionGrid(){
+	console.log('drawSolutionGrid()');
+
+	// get grid width in pixels
+	var gridWidthInPixels = $('#gridArea').width();
+	var gridHeightInPixels = $('#gridArea').height();
+	var gridCellWidth = gridWidthInPixels / gridWidth;
+	var gridCellHeight = gridHeightInPixels / gridHeight;
+
+	console.log('gridHeightInPixels: '+gridHeightInPixels);
+	console.log('divided by: '+gridHeight+' =');
+	console.log('gridCellHeight: '+gridCellHeight);
+
+	var output = [];
+	for (var h = 0; h<gridHeight; h++) {
+		for (var w = 0; w<gridWidth; w++) {
+			output.push('<span>'+ solutionGrid[w][h].tile +'</span>');
+		}
+		output.push('<br>');
+	}
+	$('div#solutionPathArea').html(output.join(''));	
+
+	// $('#solutionPathArea').css({'width' : gridWidthInPixels,
+	// 						  'height' : gridHeightInPixels});
+	
+	// $('#solutionPathArea span img').css({'width' : gridCellWidth,
+	// 									 'height' : gridCellHeight});
+	
+}
+
+
+function updatePlayerPathTiles(){
+	console.log('updatePlayerPathTiles()');
+	console.log('player.X: '+player.X+', player.Y: '+player.Y);
+	console.log('playerPath: '+playerPath.join(', '));
+
+	playerGrid[player.X][player.Y].tile = '<img src="images/open-circle.png" alt="open">';
+	
+	// examine the last item on the path
+	switch (playerPath[playerPath.length -1]){
+		case 'up' :
+			// examine the second to last item on the path
+			switch (playerPath[playerPath.length -2]){
+				case 'up' :		 	// up, up
+					playerGrid[player.X][player.Y +1].tile = '<img src="images/up-down.png" alt="up-down">';
+					break;
+				case 'right' : 		// right, up
+					playerGrid[player.X][player.Y +1].tile = '<img src="images/up-left.png" alt="up-left">';
+					break;
+				case 'down' : 		// down, up
+					playerGrid[player.X][player.Y +1].tile = '<img src="images/empty-square.png" alt="empty">';
+					playerPath.splice(-2, 2);
+					break;
+				case 'left' : 		// left, up
+					playerGrid[player.X][player.Y +1].tile = '<img src="images/up-right.png" alt="up-right">';
+					break;
+				default : console.log('this should not have happened');
+			}
+			break;
+		case 'right' :
+			// examine the second to last item on the path
+			switch (playerPath[playerPath.length -2]){
+				case 'up' : 		// up, right
+					playerGrid[player.X -1][player.Y].tile = '<img src="images/down-right.png" alt="down-right">';
+					break;
+				case 'right' : 		// right, right
+					playerGrid[player.X -1][player.Y].tile = '<img src="images/left-right.png" alt="up-down">';
+					break;
+				case 'down' : 		// down, right
+					playerGrid[player.X -1][player.Y].tile = '<img src="images/up-right.png" alt="up-right">';
+					break;
+				case 'left' : 		// left, right
+					playerGrid[player.X -1][player.Y].tile = '<img src="images/empty-square.png" alt="empty">';
+					playerPath.splice(-2, 2);
+					break;
+				default : console.log('this should not have happened');
+			}			
+			break;
+		case 'down' :
+			// examine the second to last item on the path
+			switch (playerPath[playerPath.length -2]){
+				case 'up' : 		// up, down
+					playerGrid[player.X][player.Y -1].tile = '<img src="images/empty-square.png" alt="empty">';
+					playerPath.splice(-2, 2);
+					break;
+				case 'right' : 		// right, down
+					playerGrid[player.X][player.Y -1].tile = '<img src="images/down-left.png" alt="down-left">';
+					break;
+				case 'down' : 		// down, down
+					playerGrid[player.X][player.Y -1].tile = '<img src="images/up-down.png" alt="up-down">';
+					break;
+				case 'left' : 		// left, down
+					playerGrid[player.X][player.Y -1].tile = '<img src="images/down-right.png" alt="down-right">';
+					break;
+				default : console.log('this should not have happened');
+			}
+			break;
+		case 'left' :
+			// examine the second to last item on the path
+			switch (playerPath[playerPath.length -2]){
+				case 'up' : 		// up, left
+					playerGrid[player.X +1][player.Y].tile = '<img src="images/down-left.png" alt="down-left">';
+					break;
+				case 'right' : 		// right, left
+					playerGrid[player.X +1][player.Y].tile = '<img src="images/empty-square.png" alt="empty">';
+					playerPath.splice(-2, 2);
+					break;
+				case 'down' : 		// down, left
+					playerGrid[player.X +1][player.Y].tile = '<img src="images/up-left.png" alt="up-left">';
+					break;
+				case 'left' : 		// left, left
+					playerGrid[player.X +1][player.Y].tile = '<img src="images/left-right.png" alt="left-right">';
+					break;
+				default : console.log('this should not have happened');
+			}
+			break;
+		default : alert('something made it on to playerPath that shouldn\'t have ...made it on there');
+	}
+	drawPlayerGrid();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////
+// debugging
+
+
+
+// calculate word path
+function fitWordPath() {
+
+	// determine starting point
+	startingColumn = Math.floor((Math.random() * gridWidth) + 0);
+
+	current = {X: startingColumn, Y: 0};
+
+	console.log('ready');
+
+}
+
+
+// pressing the right arrow will advance to the next step for debugging
+if (showGridBuild) {
+	$(document).on('keydown', function(event) {
+	  if (event.keyCode == 39) {
+	    advanceOneStep();
+	  }
+	});	
+}
+
+
+function advanceOneStep() {
+
+	console.log('advanceOneStep()');
+
+	// if current is not undefined
+	if (current) {
+		finishingColumn = current.X;
+
+		// unless the last letter is placed in the bottom row
+		if ((current.Y != gridHeight - 1) || (step % theWord.length != theWord.length)) {
+			
+			// if not on the last letter
+			if ((step % theWord.length) < theWord.length) {
+
+				console.log('\n\n\n\n\n\nstep: '+step);
+				console.log('step % theWord.length: ' + step % theWord.length);
+				console.log('theWord.length: '+theWord.length);
+				console.log('placing \'' + theWord[step % theWord.length] + '\' at ' + JSON.stringify(current) );
+
+				current = findOpenSpace(current);
+				
+				// if after updating current, we're now on the last letter
+				if (step % theWord.length == theWord.length - 1) {
+					
+					if (showGridBuild) {
+						drawGrid();
+						drawSolutionGrid();
+					}
+					
+				}
+				
+			} 
+
+			if (showGridBuild) {
+				drawGrid();
+				drawSolutionGrid();
+			}
+		}
+		// if the last letter is placed on the bottom row
+		else {
+			theGrid[current.X][current.Y].letter = theWord[step % theWord.length].toUpperCase();
+			theGrid[current.X][current.Y].tile = '<img src="images/'+theGrid[current.X][current.Y].letter+'.png" alt="'+theGrid[current.X][current.Y].letter+'">';
+		}
+	}
+	// eventually, current will be undefined
+	else {
+		randomizeGrid();
+		drawGrid();
+		drawPlayerGrid();
+		drawSolutionGrid();
+	}
+}
+
+
+
+
+
 
 
 
@@ -1093,7 +1080,6 @@ function updateSolutionPathTiles(){
 
 
 
-
 ////////////////////////////////
 // click create button
 $(document).on('click', '#userInputArea button.createButton', function(e){
@@ -1123,22 +1109,6 @@ $(document).on('click', '#userInputArea button.createButton', function(e){
 
 });
 
-$(document).on('keydown', function(event) {
-  switch (event.keyCode) {
-  	// case 37 : if (player.X > 0) moveLeft();
-  	// 	break;
-  	// case 38 : if (player.Y > 0) moveUp();
-  	// 	break;
-  	// case 39 : if (player.X < gridWidth - 1) moveRight();
-  	// 	break;
-  	// case 40 : if (player.Y < gridHeight - 1) moveDown();
-  	// 	break;
-  	case 71 : $('#solutionPathArea').toggle(); // g
-  		break;
-  	default : console.log('keyCode: '+ event.keyCode);
-  }
-});		
-
 
 // pressing enter while focussed on .userLabel or .color inputs clicks the addLabel button
 $(document).on('keydown','#userInputArea input, #userInputArea select', function(event) {
@@ -1148,15 +1118,6 @@ $(document).on('keydown','#userInputArea input, #userInputArea select', function
 });
 
 
-
-// pressing the right arrow will advance to the next step for debugging
-if (showGridBuild) {
-	$(document).on('keydown', function(event) {
-	  if (event.keyCode == 39) {
-	    advanceOneStep();
-	  }
-	});	
-}
 
 
 
@@ -1186,14 +1147,4 @@ if (showGridBuild) {
 
 $(function(){
 	showOptionsBox();
-
-	// initializeGrid(); // this is now called when create button is clicked
-	
-	// fitWordPath();	// this is now called when create button is clicked
-
-	// randomizeGrid();	// this is now called when create button is clicked
-
-	// drawGrid();
-	// drawGridToConsole();
 });
-

@@ -30,25 +30,28 @@
 	height: 20px;
 }*/
 
-#gridArea span {
-	margin: 1.5px 6px;
+#gameTable span {
+	/*margin: 1.5px 6px;*/
 	/*line-height: 21px;*/
 	display: inline-block;
-	/*width: 18px;*/
-	height: 18px;
+	width: 20px;
+	/*height: 18px;*/
+}
+#gameTable span img {
+	width: 100%;
 }
 #start {
 	position: absolute;
+	top: -12px;
 }
 #exit {
 	position: relative;
+	top: -8px;
 }
-#start, #exit {
-	top: -10px;
+/*#start, #exit {
 	display: inline-block;
 	text-align: center;
-	margin: 0 0 0 -16px;
-}
+}*/
 
 #userInputArea {
 	display: none;
